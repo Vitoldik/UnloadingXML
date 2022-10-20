@@ -1,0 +1,8 @@
+AddDefaultCharset UTF-8
+DirectoryIndex index.php
+RewriteEngine On
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ /public/index.php?$1 [L,QSA]
+RewriteCond %{HTTP:CF-Visitor} '"scheme":"http"'
+RewriteRule ^(.*)$ http://localhost/$1 [L]
