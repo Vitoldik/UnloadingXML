@@ -39,4 +39,6 @@ class Config
      * @var boolean
      */
     const SHOW_ERRORS = true;
+
+    public static string $APP_DIR = __DIR__;
 }

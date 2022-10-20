@@ -1,7 +1,8 @@
 {
     "require": {
         "twig/twig": "~3.0",
-        "phpoffice/phpspreadsheet": "^1.25"
+        "phpoffice/phpspreadsheet": "^1.25",
+      "ext-pdo": "*"
     },
     "autoload": {
         "psr-4": {
