@@ -16,10 +16,12 @@ class Index extends Controller {
         $fileOne->setActiveSheetIndex(0);
 
          DocumentUtils::instance()->excelToMysql(
-            $fileOne->getActiveSheet(),
-            'variant_1',
-             ['A', 'B', 'C'],
-            1
+            $fileOne->getActiveSheet(), 'variant_1',
+             [
+                 'ignoreRowAddress' => ['A', 'B', 'C'],
+                 'columnsNameLine' => 1,
+                 'primaryKey' => 'Код'
+             ]
         );
 
         View::renderTemplate('Pages/index.html');

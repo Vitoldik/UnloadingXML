@@ -66,4 +66,23 @@ class Document extends Model {
 
         return join(', ', $arr);
     }
+
+    public static function setColumnTypes($table, $primaryKey, $columns, $columnsTypes) {
+        $types = array_values($columnsTypes);
+
+        foreach ($columns as $index => $column) {
+            $modify = self::typeToMysqlType($types[$index]) . ' ' . ($column != $primaryKey ? 'NULL' : 'PRIMARY KEY');
+
+            $query = "ALTER TABLE $table MODIFY COLUMN $column $modify";
+            static::getDB()->exec($query);
+        }
+    }
+
+    public static function typeToMysqlType($type): string {
+        return match ($type) {
+            'integer' => 'INT',
+            'double' => 'FLOAT',
+            default => 'VARCHAR(255)',
+        };
+    }
 }

@@ -14,13 +14,19 @@ class DocumentUtils {
     /**
      * @param Worksheet $worksheet - документ для работы
      * @param string $tableName - название таблицы
-     * @param array $ignoreRowAddress - буквенные адреса, которые будут игнорироваться (например: A, B, C)
-     * @param int $columnsNameLine - номер колонки сверху, с которой начнется выгрузка (0 уровень - номера колонок A, B, C...)
+     * @param array $options - ignoreRowAddress - буквенные адреса, которые будут игнорироваться (например: A, B, C),
+     * columnsNameLine - номер колонки сверху, с которой начнется выгрузка (0 уровень - номера колонок A, B, C...),
+     * primaryKey - первичный ключ таблицы
      * @return void
      * @throws \PhpOffice\PhpSpreadsheet\Calculation\Exception
      * @throws \PhpOffice\PhpSpreadsheet\Exception
      */
-    public function excelToMysql(Worksheet $worksheet, string $tableName, array $ignoreRowAddress, int $columnsNameLine = 0): void {
+    public function excelToMysql(Worksheet $worksheet, string $tableName, array $options = [
+        'ignoreRowAddress' => [],
+        'columnsNameLine' => 0,
+        'primaryKey' => null
+    ]): void {
+        ['ignoreRowAddress' => $ignoreRowAddress, 'columnsNameLine' => $columnsNameLine, 'primaryKey' => $primaryKey] = $options;
         $columns = [];
 
         // Получаем количество колонок
@@ -90,6 +96,9 @@ class DocumentUtils {
             // Записываем строку в базу
             Document::addRow($tableName, $columns, $values);
         }
+
+        // Устанавливаем типы для столбцов
+        Document::setColumnTypes($tableName, $this->formatColumnName($primaryKey), $columns, $columnTypes);
     }
 
     // Преобразуем название колонок из документа
@@ -106,22 +115,33 @@ class DocumentUtils {
      * @return void
      */
     private function fillColumnTypes($value, $columnIndex, &$columnTypes): void {
-        $currentType = gettype($value);
+        $newType = StringUtils::getType($value);
 
-        if (array_key_exists($columnIndex, $columnTypes)) {
-            $type = $columnTypes[$columnIndex];
+        // Если индекса нет в массиве, то добавляем его
+        if (!array_key_exists($columnIndex, $columnTypes)) {
+            $columnTypes[$columnIndex] = $newType;
+            return;
+        }
 
-            if ($currentType != 'NULL') {
-                if ($type == 'NULL') {
-                    $columnTypes[$columnIndex] = $currentType;
-                } elseif ($type === 'integer' && $currentType === 'double') {
-                    $columnTypes[$columnIndex] = $currentType;
-                } elseif ($currentType == 'string' && filter_var($value, FILTER_VALIDATE_INT)) {
-                    $columnTypes[$columnIndex] = 'integer';
-                }
-            }
-        } else {
-            $columnTypes[$columnIndex] = $currentType;
+        $type = $columnTypes[$columnIndex];
+
+        // Если тип текущей ячейки null или тип такой же, как в массиве с типами, то выходим
+        if ($newType == 'NULL' || $newType == $type)
+            return;
+
+        // Если тип в массиве null, а новый тип нет - обновляем
+        if ($type == 'NULL') {
+            $columnTypes[$columnIndex] = $newType;
+            return;
+        }
+
+        if ($type != 'string' && preg_match("/[a-z]/i", $value)) {
+            $columnTypes[$columnIndex] = 'string';
+            return;
+        }
+
+        if ($type === 'integer' && $newType == 'double') {
+            $columnTypes[$columnIndex] = $newType;
         }
     }
 }

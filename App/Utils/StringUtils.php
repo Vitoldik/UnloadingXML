@@ -25,4 +25,33 @@ class StringUtils {
 
         return strtr($value, $converter);
     }
+
+    public static function getType($string) {
+        if ($string == null)
+            return 'NULL';
+
+        if (gettype($string) === 'array') {
+            return 'array';
+        }
+
+        $string = trim($string);
+
+        if ($string === '0' || $string === '1') {
+            return 'integer';
+        }
+
+        if (empty($string) || $string === 'NULL') {
+            return 'NULL';
+        }
+
+        if (!preg_match('/[^0-9.]+/', $string)) {
+            if (preg_match('/[.]+/', $string)) {
+                return 'double';
+            }
+
+            return 'integer';
+        }
+
+        return $string == 'true' ?  'boolean' : 'string';
+    }
 }
