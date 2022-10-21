@@ -20,7 +20,7 @@ class DocumentUtils {
      * @throws \PhpOffice\PhpSpreadsheet\Calculation\Exception
      * @throws \PhpOffice\PhpSpreadsheet\Exception
      */
-    public function excelToMysql(Worksheet $worksheet, string $tableName, array $ignoreRowAddress, int $columnsNameLine = 0) {
+    public function excelToMysql(Worksheet $worksheet, string $tableName, array $ignoreRowAddress, int $columnsNameLine = 0): void {
         $columns = [];
 
         // Получаем количество колонок
@@ -57,6 +57,8 @@ class DocumentUtils {
         // Получаем количество строк
         $rowsCount = $worksheet->getHighestRow();
 
+        $columnTypes = [];
+
         // Перебираем строки листа Excel
         for ($rowIndex = $columnsNameLine + 1; $rowIndex <= $rowsCount; $rowIndex++) {
             // Строка со значениями всех столбцов в строке листа Excel
@@ -73,10 +75,16 @@ class DocumentUtils {
                 $cell = $worksheet->getCellByColumnAndRow($columnIndex, $rowIndex);
 
                 // Получаем значение ячейки
-                $value = $cell->getCalculatedValue();
+                $rawValue = $cell->getCalculatedValue();
 
-                // Добавляем ячейку в массив, если ячейка пустая (#NULL!) то устанавливаем ей значения null
-                $values[] =  !str_contains($value, '#NULL!') ? $value : null;
+                // Если ячейка пустая (#NULL!) то устанавливаем ей значения null
+                $value = !str_contains($rawValue, '#NULL!') ? $rawValue : null;
+
+                // Добавляем ячейку в массив
+                $values[] = $value;
+
+                // Заполняем массив с типами колонок
+                $this->fillColumnTypes($value, $columnIndex, $columnTypes);
             }
 
             // Записываем строку в базу
@@ -85,9 +93,35 @@ class DocumentUtils {
     }
 
     // Преобразуем название колонок из документа
-    public function formatColumnName($name): string {
+    private function formatColumnName($name): string {
         $editedName = str_replace([' ', '.'], ['_', ''], StringUtils::translateWord($name));
 
         return strtolower(preg_replace(['/([a-z\d])([A-Z])/', '/([^_])([A-Z][a-z])/'], '$1_$2', $editedName));
+    }
+
+    /**
+     * @param $value - текущее значение ячейки
+     * @param $columnIndex - номер столбца
+     * @param $columnTypes - массив с типами столбцов
+     * @return void
+     */
+    private function fillColumnTypes($value, $columnIndex, &$columnTypes): void {
+        $currentType = gettype($value);
+
+        if (array_key_exists($columnIndex, $columnTypes)) {
+            $type = $columnTypes[$columnIndex];
+
+            if ($currentType != 'NULL') {
+                if ($type == 'NULL') {
+                    $columnTypes[$columnIndex] = $currentType;
+                } elseif ($type === 'integer' && $currentType === 'double') {
+                    $columnTypes[$columnIndex] = $currentType;
+                } elseif ($currentType == 'string' && filter_var($value, FILTER_VALIDATE_INT)) {
+                    $columnTypes[$columnIndex] = 'integer';
+                }
+            }
+        } else {
+            $columnTypes[$columnIndex] = $currentType;
+        }
     }
 }
