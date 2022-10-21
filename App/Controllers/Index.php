@@ -18,6 +18,7 @@ class Index extends Controller {
          DocumentUtils::instance()->excelToMysql(
             $fileOne->getActiveSheet(),
             'variant_1',
+             ['A', 'B', 'C'],
             1
         );
 
