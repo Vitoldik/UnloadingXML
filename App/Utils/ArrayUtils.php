@@ -14,4 +14,8 @@ class ArrayUtils {
         return $duplicated;
     }
 
+    public static function areNoUniqueValues(array $array): bool {
+        return count(array_unique($array)) === 1;
+    }
+
 }

@@ -66,6 +66,8 @@ class DocumentUtils {
         $paddingLeft = max($paddingLeft, 0);
 
         // Перебираем строки листа Excel
+        $rows = [];
+
         for ($rowIndex = $columnsNameLine + 1; $rowIndex <= $rowsCount; $rowIndex++) {
             // Строка со значениями всех столбцов в строке листа Excel
             $values = [];
@@ -85,20 +87,26 @@ class DocumentUtils {
                 // Получаем значение ячейки
                 $value = $cell->getCalculatedValue();
 
-                if ($value != null && $cell->getDataType() == DataType::TYPE_ERROR)
+                if ($value != null && $cell->getDataType() == DataType::TYPE_ERROR) {
                     $value = null;
+                }
 
                 // Добавляем ячейку в массив
-                $values[] = $value;
+                $values[] = $value == null ? 'NULL' : "'$value'";
 
                 $indexWithStartPadding = ($startIndex == $columnIndex ? array_key_first($columns) : $columnIndex); // Расчет отступа слева
                 $this->fillColumnTypes($value, $indexWithStartPadding, $columnTypes);
             }
 
-            // Записываем строку в базу
-            Document::addRow($tableName, $columns, $values);
+            if ($values[0] == 'NULL' && ArrayUtils::areNoUniqueValues($values))
+                continue;
+
+            // Записываем строку в массив строк
+            $rows[] = SQLUtils::formatInsertValues($values);
         }
 
+        // Записываем строки в базу
+        Document::addRows($tableName, $columns, $rows);
         // Устанавливаем типы для столбцов
         Document::setColumnTypes($tableName, $this->formatColumnName($primaryKey['name']), $columns, $columnTypes);
     }

@@ -25,43 +25,13 @@ class Document extends Model {
         static::getDB()->query("CREATE TABLE $name ($columnsStr)");
     }
 
-    public static function addRow(string $tableName, array $columns, array $values) : void {
-        // Исключаем строки, в которых все значения NULL
-        if ($values[0] === null && count(array_unique($values)) === 1) {
-            return;
-        }
-
-        $countColumns = count($columns);
-        $countValues = count($values);
-
-        // Если колонок больше чем значений, то заполняем недостающие нулами
-        if ($countColumns > $countValues) {
-            $diff = $countColumns - $countValues;
-            $array = [];
-
-            for ($i = 0; $i < $diff; $i++)
-                $array[] = null;
-
-            $values = array_merge($values, $array);
-        }
-
+    public static function addRows(string $tableName, array $columns, array $rows) : void {
         $columnsStr = join(',', $columns);
-        $placeholders = self::generatePlaceholders($columns);
 
-        $query = "INSERT INTO $tableName ($columnsStr) VALUES ($placeholders)";
+        $query = "INSERT INTO $tableName ($columnsStr) VALUES " .
+            join(', ', $rows);
 
-        $prepare = static::getDB()->prepare($query);
-
-        $prepare->execute($values);
-    }
-
-    // Генерируем вопросительные знаки для подстановки их в query
-    private static function generatePlaceholders(array $columns) : string {
-        $arr = array_map(function () {
-            return "?";
-        }, $columns);
-
-        return join(', ', $arr);
+        static::getDB()->prepare($query)->execute();
     }
 
     public static function setColumnTypes(string $table, string $primaryKey, array $columns, array $columnTypes): void {

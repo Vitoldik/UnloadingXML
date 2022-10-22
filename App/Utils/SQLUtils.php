@@ -27,4 +27,8 @@ class SQLUtils {
         return $string == 'true' || $string == 'false' ? SQLVariableTypes::BOOLEAN : SQLVariableTypes::TEXT;
     }
 
+    public static function formatInsertValues(array $values) : string {
+        return '(' . join(',', $values) . ')';
+    }
+
 }
