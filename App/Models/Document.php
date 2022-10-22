@@ -2,35 +2,32 @@
 
 namespace App\Models;
 
-use App\Utils\ArrayUtils;
-use App\Utils\DebugUtils;
+use App\Configs\SQLVariableTypes;
 use Core\Model;
 
 class Document extends Model {
 
-    public static function dropTable($name) {
+    public static function dropTable(string $name) : void {
         static::getDB()->query("DROP TABLE IF EXISTS $name");
     }
 
-    public static function createTable($name, $columns) {
-        foreach ($columns as $key => &$column) {
-            $column .= " TEXT NULL,";
+    public static function createTable(string $name, array $columns, array $primaryKey) : void {
+        $primaryName = $primaryKey['name'];
 
-            $arrayKeys = array_keys($columns);
+        $columnsStr = ($primaryKey['increment']
+                ? $primaryName . ' INT UNSIGNED NOT NULL AUTO_INCREMENT,'
+                : '') .
+            implode(" TEXT NULL, ", $columns) . " TEXT NULL" . ($primaryKey['increment']
+                ? ", PRIMARY KEY ($primaryName)"
+                : ''
+            );
 
-            if (end($arrayKeys) == $key) // Проверяем, последний ли это ключ массива, чтобы убрать запятую в конце
-                $column = substr($column, 0, -1);
-        }
-
-        $columnsStr = join('', $columns);
-        $query = "CREATE TABLE $name ($columnsStr)";
-
-        static::getDB()->query($query);
+        static::getDB()->query("CREATE TABLE $name ($columnsStr)");
     }
 
-    public static function addRow($tableName, $columns, $values) {
+    public static function addRow(string $tableName, array $columns, array $values) : void {
         // Исключаем строки, в которых все значения NULL
-        if ($values[0] === null && count(array_unique($values)) === 1) { // TODO изменить проверку на нулл и сделать устанавливаемым нормальное null значение
+        if ($values[0] === null && count(array_unique($values)) === 1) {
             return;
         }
 
@@ -59,7 +56,7 @@ class Document extends Model {
     }
 
     // Генерируем вопросительные знаки для подстановки их в query
-    private static function generatePlaceholders($columns) {
+    private static function generatePlaceholders(array $columns) : string {
         $arr = array_map(function () {
             return "?";
         }, $columns);
@@ -67,22 +64,26 @@ class Document extends Model {
         return join(', ', $arr);
     }
 
-    public static function setColumnTypes($table, $primaryKey, $columns, $columnsTypes) {
-        $types = array_values($columnsTypes);
+    public static function setColumnTypes(string $table, string $primaryKey, array $columns, array $columnTypes): void {
+        $query = "ALTER TABLE $table";
 
         foreach ($columns as $index => $column) {
-            $modify = self::typeToMysqlType($types[$index]) . ' ' . ($column != $primaryKey ? 'NULL' : 'PRIMARY KEY');
+            /**
+             * @var SQLVariableTypes $type
+             */
+            $type = $columnTypes[$index];
+            $isPrimaryKey = $column == $primaryKey;
 
-            $query = "ALTER TABLE $table MODIFY COLUMN $column $modify";
-            static::getDB()->exec($query);
+            $query .= " MODIFY COLUMN $column " .
+                ($type != SQLVariableTypes::NULL ? (
+                $isPrimaryKey && $type == SQLVariableTypes::TEXT
+                    ? SQLVariableTypes::VARCHAR : $type->name)
+                    : SQLVariableTypes::NULL_REPLACEMENT
+                ) .
+                ($isPrimaryKey ? ' PRIMARY KEY' : ' NULL') .
+                ($index != array_key_last($columns) ? ', ' : '');
         }
-    }
 
-    public static function typeToMysqlType($type): string {
-        return match ($type) {
-            'integer' => 'INT',
-            'double' => 'FLOAT',
-            default => 'VARCHAR(255)',
-        };
+        static::getDB()->exec($query);
     }
 }

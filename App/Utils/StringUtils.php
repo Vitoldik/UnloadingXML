@@ -4,7 +4,7 @@ namespace App\Utils;
 
 class StringUtils {
 
-    public static function translateWord($value): string {
+    public static function translateWord(string $value): string {
         $converter = array(
             'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
             'е' => 'e', 'ё' => 'e', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
@@ -26,32 +26,7 @@ class StringUtils {
         return strtr($value, $converter);
     }
 
-    public static function getType($string) {
-        if ($string == null)
-            return 'NULL';
-
-        if (gettype($string) === 'array') {
-            return 'array';
-        }
-
-        $string = trim($string);
-
-        if ($string === '0' || $string === '1') {
-            return 'integer';
-        }
-
-        if (empty($string) || $string === 'NULL') {
-            return 'NULL';
-        }
-
-        if (!preg_match('/[^0-9.]+/', $string)) {
-            if (preg_match('/[.]+/', $string)) {
-                return 'double';
-            }
-
-            return 'integer';
-        }
-
-        return $string == 'true' ?  'boolean' : 'string';
+    public static function toSnakeCase(string $word): string {
+        return strtolower(preg_replace(['/([a-z\d])([A-Z])/', '/([^_])([A-Z][a-z])/'], '$1_$2', $word));
     }
 }

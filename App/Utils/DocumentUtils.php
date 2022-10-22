@@ -2,9 +2,11 @@
 
 namespace App\Utils;
 
+use App\Configs\SQLVariableTypes;
 use App\Models\Document;
 use App\Traits\TSingleton;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class DocumentUtils {
@@ -14,19 +16,20 @@ class DocumentUtils {
     /**
      * @param Worksheet $worksheet - документ для работы
      * @param string $tableName - название таблицы
-     * @param array $options - ignoreRowAddress - буквенные адреса, которые будут игнорироваться (например: A, B, C),
-     * columnsNameLine - номер колонки сверху, с которой начнется выгрузка (0 уровень - номера колонок A, B, C...),
-     * primaryKey - первичный ключ таблицы
+     * @param array $options - массив опций для настройки выгрузки
      * @return void
      * @throws \PhpOffice\PhpSpreadsheet\Calculation\Exception
      * @throws \PhpOffice\PhpSpreadsheet\Exception
      */
     public function excelToMysql(Worksheet $worksheet, string $tableName, array $options = [
-        'ignoreRowAddress' => [],
-        'columnsNameLine' => 0,
-        'primaryKey' => null
+        'paddingLeft' => 0, // Количество колонок для отступа слева (так как в документе вариант 1 он есть)
+        'columnsNameLine' => 0, // Номер колонки сверху, с которой начнется выгрузка (0 уровень - номера колонок A, B, C...)
+        'primaryKey' => [ // Настройки первичного ключа таблицы
+            'name' => 'id',
+            'increment' => false
+        ]
     ]): void {
-        ['ignoreRowAddress' => $ignoreRowAddress, 'columnsNameLine' => $columnsNameLine, 'primaryKey' => $primaryKey] = $options;
+        ['paddingLeft' => $paddingLeft, 'columnsNameLine' => $columnsNameLine, 'primaryKey' => $primaryKey] = $options;
         $columns = [];
 
         // Получаем количество колонок
@@ -35,7 +38,7 @@ class DocumentUtils {
         // Заполняем массив columns названиями колонок
         for ($index = 1; $index <= $columnsCount; $index++) {
             if ($columnsNameLine == 0) {
-                $columns[] = "column" . $index;
+                $columns[$index] = "column" . $index;
                 continue;
             }
 
@@ -45,25 +48,22 @@ class DocumentUtils {
                 continue;
             }
 
-            $columns[] = $columnsNameLine == 1 ? $this->formatColumnName($columnName) : $columnName;
+            $columns[$index] = $columnsNameLine == 1 ? $this->formatColumnName($columnName) : $columnName;
         }
 
         // Удаляем старую таблицу
         Document::dropTable($tableName);
+        // Удаляем дубликаты из названия колонок
+        $duplicated = ArrayUtils::getAndRemoveDuplicate($columns);
         // Создаем таблицу для заполнения
-        Document::createTable($tableName, $columns);
+        Document::createTable($tableName, $columns, $primaryKey);
 
         // Работа со строками
-        $ignoreRowIndex = [];
-
-        foreach ($ignoreRowAddress as $address) {
-            $ignoreRowIndex[] = Coordinate::columnIndexFromString($address);
-        }
-
         // Получаем количество строк
         $rowsCount = $worksheet->getHighestRow();
 
         $columnTypes = [];
+        $paddingLeft = max($paddingLeft, 0);
 
         // Перебираем строки листа Excel
         for ($rowIndex = $columnsNameLine + 1; $rowIndex <= $rowsCount; $rowIndex++) {
@@ -71,9 +71,11 @@ class DocumentUtils {
             $values = [];
 
             // Перебираем столбцы листа Excel
-            for ($columnIndex = 1; $columnIndex <= $columnsCount; $columnIndex++) {
+            $startIndex = $paddingLeft + 1;
 
-                if (in_array($columnIndex, $ignoreRowIndex)) {
+            for ($columnIndex = $startIndex; $columnIndex <= $columnsCount; $columnIndex++) {
+
+                if (array_key_exists($columnIndex, $duplicated)) {
                     continue;
                 }
 
@@ -81,16 +83,16 @@ class DocumentUtils {
                 $cell = $worksheet->getCellByColumnAndRow($columnIndex, $rowIndex);
 
                 // Получаем значение ячейки
-                $rawValue = $cell->getCalculatedValue();
+                $value = $cell->getCalculatedValue();
 
-                // Если ячейка пустая (#NULL!) то устанавливаем ей значения null
-                $value = !str_contains($rawValue, '#NULL!') ? $rawValue : null;
+                if ($value != null && $cell->getDataType() == DataType::TYPE_ERROR)
+                    $value = null;
 
                 // Добавляем ячейку в массив
                 $values[] = $value;
 
-                // Заполняем массив с типами колонок
-                $this->fillColumnTypes($value, $columnIndex, $columnTypes);
+                $indexWithStartPadding = ($startIndex == $columnIndex ? array_key_first($columns) : $columnIndex); // Расчет отступа слева
+                $this->fillColumnTypes($value, $indexWithStartPadding, $columnTypes);
             }
 
             // Записываем строку в базу
@@ -98,14 +100,18 @@ class DocumentUtils {
         }
 
         // Устанавливаем типы для столбцов
-        Document::setColumnTypes($tableName, $this->formatColumnName($primaryKey), $columns, $columnTypes);
+        Document::setColumnTypes($tableName, $this->formatColumnName($primaryKey['name']), $columns, $columnTypes);
     }
 
     // Преобразуем название колонок из документа
-    private function formatColumnName($name): string {
-        $editedName = str_replace([' ', '.'], ['_', ''], StringUtils::translateWord($name));
+    // Не знаю, нужен ли транслит :D, но не видел, чтобы кто-то называл столбцы на русском
+    private function formatColumnName(string $name): string {
+        // убираем текст в скобках, точки и заменяем пробелы на _
+        $processedName = StringUtils::translateWord(
+            trim(preg_replace(['/\([^)]*(\)?)|[()]|\./', '/\s+/i'], ['', '_'], trim($name)), '_')
+        );
 
-        return strtolower(preg_replace(['/([a-z\d])([A-Z])/', '/([^_])([A-Z][a-z])/'], '$1_$2', $editedName));
+        return StringUtils::toSnakeCase($processedName);
     }
 
     /**
@@ -114,8 +120,8 @@ class DocumentUtils {
      * @param $columnTypes - массив с типами столбцов
      * @return void
      */
-    private function fillColumnTypes($value, $columnIndex, &$columnTypes): void {
-        $newType = StringUtils::getType($value);
+    private function fillColumnTypes(?string $value, int $columnIndex, array &$columnTypes): void {
+        $newType = SQLUtils::getType($value);
 
         // Если индекса нет в массиве, то добавляем его
         if (!array_key_exists($columnIndex, $columnTypes)) {
@@ -126,21 +132,21 @@ class DocumentUtils {
         $type = $columnTypes[$columnIndex];
 
         // Если тип текущей ячейки null или тип такой же, как в массиве с типами, то выходим
-        if ($newType == 'NULL' || $newType == $type)
+        if ($value == null || $newType == $type || $newType == SQLVariableTypes::NULL)
             return;
 
         // Если тип в массиве null, а новый тип нет - обновляем
-        if ($type == 'NULL') {
+        if ($type == SQLVariableTypes::NULL) {
             $columnTypes[$columnIndex] = $newType;
             return;
         }
 
-        if ($type != 'string' && preg_match("/[a-z]/i", $value)) {
-            $columnTypes[$columnIndex] = 'string';
+        if ($type != SQLVariableTypes::TEXT && preg_match("/[a-z]/i", $value)) {
+            $columnTypes[$columnIndex] = SQLVariableTypes::TEXT;
             return;
         }
 
-        if ($type === 'integer' && $newType == 'double') {
+        if ($type === SQLVariableTypes::INT && $newType == SQLVariableTypes::FLOAT) {
             $columnTypes[$columnIndex] = $newType;
         }
     }
