@@ -8,6 +8,7 @@ use App\Traits\TSingleton;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use XMLReader;
 
 class DocumentUtils {
 
@@ -156,6 +157,51 @@ class DocumentUtils {
         }
     }
 
+    public function xmlToMysql(string $fileContent, string $tableName, array $options = [
+        'primaryKey' => [ // Настройки первичного ключа таблицы
+            'name' => 'id',
+            'type' => 'INT'
+        ]
+    ]): void {
+        $reader = (new XMLReader());
+        $reader->XML($fileContent);
+
+        $primaryKey = $options['primaryKey'];
+        $primaryKey['name'] = $this->formatColumnName($primaryKey['name']);
+        $columns = [];
+        $rows = [];
+
+        while ($reader->read()) {
+            if ($reader->name != 'Номенклатура')
+                continue;
+
+            $reader->moveToFirstAttribute();
+            $value = $reader->value;
+            $values = [];
+
+            if (empty($columns)) {
+                $columns[$this->formatColumnName($reader->name)] = SQLUtils::getType($value);
+            }
+
+            $values[] = $value ? "'$value'" : 'NULL';
+
+            while ($reader->moveToNextAttribute()) {
+                $column = $this->formatColumnName($reader->name);
+                $value = $reader->value;
+
+                $this->fillColumnTypes($reader->value, $column, $columns);
+                $values[] = $value ? "'$value'" : 'NULL';
+            }
+
+            $rows[] = SQLUtils::formatInsertValues($values);
+        }
+
+        // Удаляем старую таблицу
+        Document::dropTable($tableName);
+        Document::createTableWithTypes($tableName, $columns, $primaryKey);
+        Document::addRows($tableName, array_keys($columns), $rows);
+    }
+
     // Преобразуем название колонок из документа
     // Не знаю, нужен ли транслит :D, но не видел, чтобы кто-то называл столбцы на русском
     public function formatColumnName(string $name): string {
@@ -173,7 +219,7 @@ class DocumentUtils {
      * @param $columnTypes - массив с типами столбцов
      * @return void
      */
-    private function fillColumnTypes(?string $value, int $columnIndex, array &$columnTypes): void {
+    private function fillColumnTypes(?string $value, int|string $columnIndex, array &$columnTypes): void {
         $newType = SQLUtils::getType($value);
 
         // Если индекса нет в массиве, то добавляем его

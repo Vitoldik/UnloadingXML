@@ -27,6 +27,22 @@ class Document extends Model {
         static::getDB()->query("CREATE TABLE $name ($columnsStr)");
     }
 
+    public static function createTableWithTypes(string $name, array $columns, array $primaryKey) : void {
+        $primaryName = $primaryKey['name'];
+        $columnsStr = '';
+
+        foreach ($columns as $key => $type) {
+            $columnsStr .= ($key == $primaryName
+                ? $primaryName . ' ' . $primaryKey['type'] . ' PRIMARY KEY NOT NULL'
+                : $key . ' ' . ($type != SQLVariableTypes::NULL
+                        ? $type->name
+                        : SQLVariableTypes::NULL_REPLACEMENT) . ' NULL') .
+                ($key != array_key_last($columns) ? ',' : '');
+        }
+
+        static::getDB()->query("CREATE TABLE $name ($columnsStr)");
+    }
+
     public static function addRows(string $tableName, array $columns, string|array $rows) : void {
         $columnsStr = join(',', $columns);
 
