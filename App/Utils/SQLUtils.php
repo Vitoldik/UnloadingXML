@@ -31,4 +31,45 @@ class SQLUtils {
         return '(' . join(',', $values) . ')';
     }
 
+    public static function formatInsertValueWithColumns(array $columns, array $values) : string {
+        $insert = '';
+
+        foreach ($values as $key => $arr) {
+            $fill = array_fill(0, count($columns), 'NULL');
+
+            foreach ($arr as $index => $value) {
+                $search = array_search($index, $columns);
+
+                $fill[$search] = $value;
+            }
+
+            $insert .= self::formatInsertValues($fill) .
+                ($key != array_key_last($values) ? ',' : '');
+        }
+
+        return $insert;
+    }
+
+    public static function formatInsertValueForChildrenTable(&$childrenTableColumns, string $string, string $delimiter = ' '): array { // TODO рефакторинг
+        $params = explode('<br>', strip_tags($string, '<br>'));
+
+        $pairs = [];
+
+        foreach ($params as $value) {
+            $explode = explode($delimiter, $value);
+
+            if (!isset($explode[0]) || !isset($explode[1]))
+                continue;
+
+            $column = DocumentUtils::instance()->formatColumnName(trim($explode[0]));
+
+            if (!in_array($column, $childrenTableColumns))
+                $childrenTableColumns[] = $column;
+
+            $pairs[DocumentUtils::instance()->formatColumnName(trim($explode[0]))] = "'" . trim($explode[1]) . "'";
+        }
+
+        return $pairs;
+    }
+
 }

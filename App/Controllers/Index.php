@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Config;
+use App\Configs\SQLVariableTypes;
 use App\Utils\DocumentUtils;
 use Core\Controller;
 use \Core\View;
@@ -17,27 +18,33 @@ class Index extends Controller {
         $fileOne->setActiveSheetIndex(0);
         $fileTwo->setActiveSheetIndex(0);
 
-         DocumentUtils::instance()->excelToMysql(
-            $fileOne->getActiveSheet(), 'variant_1',
+         DocumentUtils::instance()->xlsxToMysql(
+             $fileOne->getActiveSheet(),
+             'variant_1',
              [
                  'paddingLeft' => 3,
                  'columnsNameLine' => 1,
                  'primaryKey' => [
-                   'name' => 'Код',
-                   'increment' => false
-                  ]
+                     'name' => 'Код',
+                     'type' => SQLVariableTypes::VARCHAR,
+                     'increment' => false
+                 ],
+                 'moveColumnToSeparateTable' => ''
              ]
-        );
+         );
 
-        DocumentUtils::instance()->excelToMysql(
-            $fileTwo->getActiveSheet(), 'variant_4',
+        DocumentUtils::instance()->xlsxToMysql(
+            $fileTwo->getActiveSheet(),
+            'variant_4',
             [
                 'paddingLeft' => 0,
                 'columnsNameLine' => 1,
                 'primaryKey' => [
-                    'name' => 'id',
-                    'increment' => true
-                ]
+                    'name' => 'ID элемента предложения',
+                    'type' => SQLVariableTypes::INT->name,
+                    'increment' => false
+                ],
+                'moveColumnToSeparateTable' => 'Характеристики'
             ]
         );
 

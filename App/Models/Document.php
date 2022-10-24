@@ -14,44 +14,43 @@ class Document extends Model {
     public static function createTable(string $name, array $columns, array $primaryKey) : void {
         $primaryName = $primaryKey['name'];
 
+        // Удаляем primaryKey, если он есть в списке колонок
+        if (($key = array_search($primaryName, $columns)) !== false) {
+            unset($columns[$key]);
+        }
+
         $columnsStr = ($primaryKey['increment']
                 ? $primaryName . ' INT UNSIGNED NOT NULL AUTO_INCREMENT,'
-                : '') .
-            implode(" TEXT NULL, ", $columns) . " TEXT NULL" . ($primaryKey['increment']
-                ? ", PRIMARY KEY ($primaryName)"
-                : ''
-            );
+                : $primaryName . ' ' . $primaryKey['type']) . ',' .
+            implode(" TEXT NULL, ", $columns) . " TEXT NULL" . ", PRIMARY KEY ($primaryName)";
 
         static::getDB()->query("CREATE TABLE $name ($columnsStr)");
     }
 
-    public static function addRows(string $tableName, array $columns, array $rows) : void {
+    public static function addRows(string $tableName, array $columns, string|array $rows) : void {
         $columnsStr = join(',', $columns);
 
         $query = "INSERT INTO $tableName ($columnsStr) VALUES " .
-            join(', ', $rows);
+            (is_array($rows) ? join(', ', $rows) : $rows);
 
         static::getDB()->prepare($query)->execute();
     }
 
-    public static function setColumnTypes(string $table, string $primaryKey, array $columns, array $columnTypes): void {
+    public static function setColumnTypes(string $table, array $columns, array $columnTypes, array $primaryKey): void {
         $query = "ALTER TABLE $table";
 
         foreach ($columns as $index => $column) {
+            if ($column == $primaryKey['name'])
+                continue;
+
             /**
              * @var SQLVariableTypes $type
              */
             $type = $columnTypes[$index];
-            $isPrimaryKey = $column == $primaryKey;
 
             $query .= " MODIFY COLUMN $column " .
-                ($type != SQLVariableTypes::NULL ? (
-                $isPrimaryKey && $type == SQLVariableTypes::TEXT
-                    ? SQLVariableTypes::VARCHAR : $type->name)
-                    : SQLVariableTypes::NULL_REPLACEMENT
-                ) .
-                ($isPrimaryKey ? ' PRIMARY KEY' : ' NULL') .
-                ($index != array_key_last($columns) ? ', ' : '');
+            ($type != SQLVariableTypes::NULL ? $type->name : SQLVariableTypes::NULL_REPLACEMENT) .
+            ($index != array_key_last($columns) ? ', ' : '');
         }
 
         static::getDB()->exec($query);

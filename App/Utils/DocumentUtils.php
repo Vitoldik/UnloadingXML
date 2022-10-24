@@ -21,16 +21,32 @@ class DocumentUtils {
      * @throws \PhpOffice\PhpSpreadsheet\Calculation\Exception
      * @throws \PhpOffice\PhpSpreadsheet\Exception
      */
-    public function excelToMysql(Worksheet $worksheet, string $tableName, array $options = [
+    public function xlsxToMysql(Worksheet $worksheet, string $tableName, array $options = [
         'paddingLeft' => 0, // Количество колонок для отступа слева (так как в документе вариант 1 он есть)
         'columnsNameLine' => 0, // Номер колонки сверху, с которой начнется выгрузка (0 уровень - номера колонок A, B, C...)
         'primaryKey' => [ // Настройки первичного ключа таблицы
             'name' => 'id',
-            'increment' => false
-        ]
+            'type' => 'INT',
+            'increment' => true
+        ],
+        'moveColumnToSeparateTable' => ''
     ]): void {
-        ['paddingLeft' => $paddingLeft, 'columnsNameLine' => $columnsNameLine, 'primaryKey' => $primaryKey] = $options;
+        [
+            'paddingLeft' => $paddingLeft,
+            'columnsNameLine' => $columnsNameLine,
+            'primaryKey' => $primaryKey,
+            'moveColumnToSeparateTable' => $moveColumnToSeparateTable
+        ] = $options;
+
         $columns = [];
+
+        // Преобразуем входные опции
+        $primaryKey['name'] = $this->formatColumnName($primaryKey['name']);
+        $moveColumnToSeparateTable = $this->formatColumnName($moveColumnToSeparateTable);
+        $childrenTableName = $tableName . '_' . $moveColumnToSeparateTable;
+
+        // Номер колонки с праймари ключем
+        $primaryKeyColumnIndex = 0;
 
         // Получаем количество колонок
         $columnsCount = Coordinate::columnIndexFromString($worksheet->getHighestColumn());
@@ -48,13 +64,26 @@ class DocumentUtils {
                 continue;
             }
 
-            $columns[$index] = $columnsNameLine == 1 ? $this->formatColumnName($columnName) : $columnName;
+            $translatedColumnName = $this->formatColumnName($columnName);
+
+            if ($translatedColumnName == $primaryKey['name']) {
+                $primaryKeyColumnIndex = $index;
+            }
+
+            $columns[$index] = $columnsNameLine == 1 ? $translatedColumnName : $columnName;
         }
 
         // Удаляем старую таблицу
         Document::dropTable($tableName);
+        // Удаляем дочернюю таблицу
+        Document::dropTable($childrenTableName);
         // Удаляем дубликаты из названия колонок
         $duplicated = ArrayUtils::getAndRemoveDuplicate($columns);
+        // Ищем индекс колонки, которую необходимо удалить из массива колонок
+        $movedColumnIndex = array_search($moveColumnToSeparateTable, $columns);
+        // Удаляем колонку, которую необходимо вынести в отдельную таблицу
+        unset($columns[$movedColumnIndex]);
+
         // Создаем таблицу для заполнения
         Document::createTable($tableName, $columns, $primaryKey);
 
@@ -67,6 +96,8 @@ class DocumentUtils {
 
         // Перебираем строки листа Excel
         $rows = [];
+        $childrenTableColumns = [$primaryKey['name']];
+        $childrenTableInfo = [];
 
         for ($rowIndex = $columnsNameLine + 1; $rowIndex <= $rowsCount; $rowIndex++) {
             // Строка со значениями всех столбцов в строке листа Excel
@@ -91,6 +122,13 @@ class DocumentUtils {
                     $value = null;
                 }
 
+                if ($columnIndex == $movedColumnIndex) {
+                    $pairs = SQLUtils::formatInsertValueForChildrenTable($childrenTableColumns, $cell->getValue(), ':');
+                    $primaryKeyValue = $worksheet->getCellByColumnAndRow($primaryKeyColumnIndex, $rowIndex)->getCalculatedValue();
+                    $childrenTableInfo[] = array_merge([$primaryKey['name'] => $primaryKeyValue], $pairs);
+                    continue;
+                }
+
                 // Добавляем ячейку в массив
                 $values[] = $value == null ? 'NULL' : "'$value'";
 
@@ -108,15 +146,22 @@ class DocumentUtils {
         // Записываем строки в базу
         Document::addRows($tableName, $columns, $rows);
         // Устанавливаем типы для столбцов
-        Document::setColumnTypes($tableName, $this->formatColumnName($primaryKey['name']), $columns, $columnTypes);
+        Document::setColumnTypes($tableName, $columns, $columnTypes, $primaryKey);
+        // Работа с дочерней таблицей
+        if (!empty($moveColumnToSeparateTable)) {
+            Document::createTable($childrenTableName, $childrenTableColumns, $primaryKey);
+            $childrenTableValues = SQLUtils::formatInsertValueWithColumns($childrenTableColumns, $childrenTableInfo);
+
+            Document::addRows($childrenTableName, $childrenTableColumns, $childrenTableValues);
+        }
     }
 
     // Преобразуем название колонок из документа
     // Не знаю, нужен ли транслит :D, но не видел, чтобы кто-то называл столбцы на русском
-    private function formatColumnName(string $name): string {
+    public function formatColumnName(string $name): string {
         // убираем текст в скобках, точки и заменяем пробелы на _
         $processedName = StringUtils::translateWord(
-            trim(preg_replace(['/\([^)]*(\)?)|[()]|\./', '/\s+/i'], ['', '_'], trim($name)), '_')
+            trim(preg_replace(['/\([^)]*(\)?)|[()]|\./', '/[\s-]+/i', '/\//i'], ['', '_', '_ili_'], trim($name)), '_')
         );
 
         return StringUtils::toSnakeCase($processedName);
