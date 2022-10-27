@@ -41,4 +41,5 @@ class Config
     const SHOW_ERRORS = true;
 
     public static string $APP_DIR = __DIR__;
+    const PAGE_LIMIT = 10;
 }

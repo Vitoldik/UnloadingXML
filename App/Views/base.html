@@ -3,9 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}{% endblock %}</title>
+    <!-- CSS only -->
+    <link href="../../public/css/vendor/bootstrap.min.css" rel="stylesheet">
+    <link href="../../public/css/vendor/iziToast.min.css" rel="stylesheet">
+    <link href="../../public/css/main.css" rel="stylesheet">
 </head>
 <body>
-    {% block body %}
-    {% endblock %}
+{% block body %}
+{% endblock %}
+<script src="../../public/js/vendor/popper.min.js"></script>
+<script src="../../public/js/vendor/bootstrap.min.js"></script>
+<script src="../../public/js/vendor/iziToast.min.js"></script>
+<script src="../../public/js/utils/alertUtils.js"></script>
+<script src="../../public/js/utils/queryUtils.js"></script>
+<script src="../../public/js/main.js"></script>
 </body>
 </html>

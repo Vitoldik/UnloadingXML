@@ -72,4 +72,22 @@ class SQLUtils {
         return $pairs;
     }
 
+    public static function generateQuerySearch(array $searchParams, array $sortParams, array $priceFilterParams) : string {
+        $searchParams = !empty($searchParams)
+            ? ' WHERE ' . $searchParams['column'] . ' LIKE ' . "'" . $searchParams['text'] . "'"
+            : '';
+
+        $filterParams = !empty($priceFilterParams)
+            ? ((!empty($searchParams) ? ' AND ' : ' WHERE ') .
+            $priceFilterParams['column'] . ' BETWEEN ' . $priceFilterParams['min'] . ' AND ' . $priceFilterParams['max'])
+            : '';
+
+        $sortParams = !empty($sortParams)
+            ? ' ORDER BY ' . $sortParams['column'] . ' ' . $sortParams['type']
+            : '';
+
+
+        return $searchParams . $filterParams . $sortParams;
+    }
+
 }

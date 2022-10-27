@@ -3,62 +3,80 @@
 namespace App\Controllers;
 
 use App\Config;
-use App\Configs\SQLVariableTypes;
-use App\Utils\DocumentUtils;
+use App\Lang\ColumnLocale;
+use App\Models\Document;
+use App\Utils\SQLUtils;
 use Core\Controller;
 use Core\View;
-use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class Index extends Controller {
 
     public function indexAction() {
-        $variant1 = IOFactory::load(Config::$APP_DIR . "\Resources\Documents\\variant_1.xlsx");
-        $variant2 = file_get_contents(Config::$APP_DIR . "\Resources\Documents\\variant_2.xml");;
-        $variant4 = IOFactory::load(Config::$APP_DIR . "\Resources\Documents\\variant_4.xlsx");
+        // DocumentUtils::instance()->loadDocuments(); - выгрузка из документов
 
-        $variant1->setActiveSheetIndex(0);
-        $variant4->setActiveSheetIndex(0);
+        $page = 0;
 
-         DocumentUtils::instance()->xlsxToMysql(
-             $variant1->getActiveSheet(),
-             'variant_1',
-             [
-                 'paddingLeft' => 3,
-                 'columnsNameLine' => 1,
-                 'primaryKey' => [
-                     'name' => 'Код',
-                     'type' => SQLVariableTypes::VARCHAR,
-                     'increment' => false
-                 ],
-                 'moveColumnToSeparateTable' => ''
-             ]
-         );
+        if (isset($_GET['page'])) {
+            $page = max($_GET['page'] - 1, 0);
+        }
 
-        DocumentUtils::instance()->xlsxToMysql(
-            $variant4->getActiveSheet(),
-            'variant_4',
-            [
-                'paddingLeft' => 0,
-                'columnsNameLine' => 1,
-                'primaryKey' => [
-                    'name' => 'ID элемента предложения',
-                    'type' => SQLVariableTypes::INT->name,
-                    'increment' => false
-                ],
-                'moveColumnToSeparateTable' => 'Характеристики'
-            ]
-        );
+        $searchParams = [];
 
-        DocumentUtils::instance()->xmlToMysql(
-            $variant2,
-            'variant_2',
-            [
-                'primaryKey' => [
-                    'name' => 'Код',
-                    'type' => SQLVariableTypes::VARCHAR
-                ]
-            ]);
+        if (isset($_GET['searchColumn']) && isset($_GET['searchText'])) {
+            $translatedColumn = ColumnLocale::transtale($_GET['searchColumn']);
 
-        View::renderTemplate('Pages/index.html');
+            if ($translatedColumn) {
+                $searchParams = [
+                    'column' => $translatedColumn,
+                    'text' => $_GET['searchText']
+                ];
+            }
+        }
+
+        $sortParams = [];
+
+        if (isset($_GET['sortColumn']) && isset($_GET['sortType'])) {
+            $translatedColumn = ColumnLocale::transtale($_GET['sortColumn']);
+
+            if ($translatedColumn) {
+                $sortParams = [
+                    'column' => $translatedColumn,
+                    'type' => $_GET['sortType']
+                ];
+            }
+        }
+
+        $priceFilterParams = [];
+
+        if (isset($_GET['minPrice']) && isset($_GET['maxPrice']) && isset($_GET['priceColumn'])) {
+            $translatedColumn = ColumnLocale::transtale($_GET['priceColumn']);
+
+            if ($translatedColumn) {
+                $priceFilterParams = [
+                    'column' => $translatedColumn,
+                    'min' => $_GET['minPrice'],
+                    'max' => $_GET['maxPrice']
+                ];
+            }
+        }
+
+        $limit = Config::PAGE_LIMIT;
+        $start = $page * $limit;
+        $params = SQLUtils::generateQuerySearch($searchParams, $sortParams, $priceFilterParams);
+
+        $pageContent = Document::getPage($start, $limit, $params);
+
+        if (empty($pageContent)) {
+            View::renderTemplate('404.html');
+            return;
+        }
+
+        $pageCount = ceil(Document::calcPageAmount($params) / $limit);
+        $columns = ColumnLocale::handle(array_keys($pageContent[0]));
+
+        View::renderTemplate('Pages/index.twig', ['columns' => $columns, 'content' => $pageContent, 'page' => [
+            'current' => $page + 1,
+            'count' => $pageCount,
+        ]]);
     }
 }

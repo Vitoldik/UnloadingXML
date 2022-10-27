@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block body %}
+
+    <h1>Товары</h1>
+
+    <div class="filter-main-container d-flex row gx-0">
+        {#    Поиск    #}
+        <div class="search-container row g-2">
+            <div class="col-auto">
+                <label for="searchInput" class="col-form-label">Поиск:</label>
+            </div>
+            <div class="col-auto">
+                <input type="text" id="searchInput" class="form-control">
+            </div>
+            <div class="col-auto">
+                <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle btn-search-column" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
+                        Укажите колонку
+                    </button>
+                    <ul class="dropdown-menu search-column-dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                        {% for column in columns %}
+                            <li><a class="dropdown-item" href="">{{ column }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary btn-search" type="submit">Поиск</button>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-danger btn-search-reset" type="submit">Сбросить</button>
+            </div>
+        </div>
+        {#    Сортировка    #}
+        <div class="sort-container row g-2">
+            <div class="col-auto">
+                <label class="col-form-label">Сортировка:</label>
+            </div>
+            <div class="col-auto">
+                <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle btn-sort-type" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
+                        Тип сортировки
+                    </button>
+                    <ul class="dropdown-menu sort-type-dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                        <li><a class="dropdown-item" href="" data-sort-type="ASC">По возрастанию</a></li>
+                        <li><a class="dropdown-item" href="" data-sort-type="DESC">По убыванию</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle btn-sort-column" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
+                        Укажите колонку
+                    </button>
+                    <ul class="dropdown-menu sort-column-dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                        {% for column in columns %}
+                            <li><a class="dropdown-item" href="">{{ column }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary btn-sort" type="submit">Сортировать</button>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-danger btn-sort-reset" type="submit">Сбросить</button>
+            </div>
+        </div>
+        {#    Фильтрация    #}
+        <div class="filter-container row g-2">
+            <div class="col-auto">
+                <label class="col-form-label">Фильтрация:</label>
+            </div>
+            <div class="col-auto">
+                <label for="minPrice" class="col-form-label">Цена от:</label>
+            </div>
+            <div class="col-auto">
+                <input type="number" id="minPrice" class="form-control">
+            </div>
+            <div class="col-auto">
+                <label for="maxPrice" class="col-form-label">до:</label>
+            </div>
+            <div class="col-auto">
+                <input type="number" id="maxPrice" class="form-control">
+            </div>
+            <div class="col-auto">
+                <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle btn-filter-price" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
+                        Колонка цены
+                    </button>
+                    <ul class="dropdown-menu filter-price-dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                        <li><a class="dropdown-item" href="">Цена 1</a></li>
+                        <li><a class="dropdown-item" href="">Цена 2</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary btn-filter" type="submit">Применить фильтр</button>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-danger btn-filter-reset" type="submit">Сбросить</button>
+            </div>
+        </div>
+    </div>
+
+    <table class="table table-bordered">
+        <thead>
+        <tr>
+            {% for column in columns %}
+                <th scope="col">{{ column }}</th>
+            {% endfor %}
+        </tr>
+        </thead>
+        <tbody>
+        {% for rows in content %}
+            <tr>
+                {% for row in rows %}
+                    <td>{{ row | default('-') }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <nav class="pagination-container" aria-label="Page navigation">
+        <ul class="pagination">
+            <li class="page-item {{ page['current'] == 1 ? 'disabled' : '' }}">
+                <a class="page-link" href="">Предыдущая</a>
+            </li>
+
+            {% set n = page['count'] %}
+            {% for i in range(1, n) %}
+                <li class="page-item {{ page['current'] == i ? 'active' : '' }}">
+                    {% if (page['current'] == i ? 'active' : '') > 10 %}
+                        <span class="page-link" href="">{{ i }}</span>
+                    {% else %}
+                        <a class="page-link" href="">{{ i }}</a>
+                    {% endif %}
+                </li>
+            {% endfor %}
+
+            <li class="page-item {{ page['current'] == page['count'] ? 'disabled' : '' }}">
+                <a class="page-link" href="">Следующая</a>
+            </li>
+        </ul>
+    </nav>
+
+{% endblock %}
